@@ -17,13 +17,6 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Show repo status
-        run: |
-          pwd
-          ls -al
-          echo "Python version:"
-          python3 -V || true
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -35,35 +28,33 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run crawler
+        env:
+          MPLBACKEND: Agg
         run: |
-          mkdir -p data
+          mkdir -p data charts
           python crawler.py
           echo "==== After crawler ===="
           ls -al data || true
+          ls -al charts || true
 
-      - name: Upload data artifact (for debugging)
+      - name: Upload artifacts (data & charts)
         uses: actions/upload-artifact@v4
         with:
-          name: pchome-data
-          path: data/
+          name: pchome-output
+          path: |
+            data/
+            charts/
 
       - name: Commit results (robust)
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # 安全加入所有變更（包含新建立的 data/）
           git add -A
-
-          # 顯示差異以便除錯（不影響提交）
           git status
           git diff --staged --stat || true
-
-          # 只有在有變更時才提交
           if ! git diff --cached --quiet; then
             git commit -m "data: update PChome keywords on $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
             git push
           else
             echo "No changes to commit."
-          fi
