@@ -15,9 +15,20 @@ HEADERS = {
     "Accept-Language": "zh-TW,zh;q=0.9"
 }
 OUT_DIR = "data"
-DAILY_ALL_CSV = os.path.join(OUT_DIR, "daily.csv")  # 累積所有天
-TODAY = dt.datetime.utcnow().astimezone(dt.timezone(dt.timedelta(hours=8))).date()  # 以台北時間為準
+DAILY_ALL_CSV = os.path.join(OUT_DIR, "daily.csv")
+TZ8 = dt.timezone(dt.timedelta(hours=8))
+TODAY = dt.datetime.now(TZ8).date()
 TODAY_SNAPSHOT = os.path.join(OUT_DIR, f"pchome_keywords_{TODAY.isoformat()}.csv")
+TODAY_LOG = os.path.join(OUT_DIR, f"log_{TODAY.isoformat()}.txt")
+
+DEFAULT_KEYWORDS = ["洋裝","連身裙","牛仔褲","短裙","雪紡","針織衫","襯衫","西裝外套","風衣","高腰褲"]
+
+def log(msg: str):
+    os.makedirs(OUT_DIR, exist_ok=True)
+    ts = dt.datetime.now(TZ8).strftime("%Y-%m-%d %H:%M:%S")
+    with open(TODAY_LOG, "a", encoding="utf-8") as f:
+        f.write(f"[{ts}] {msg}\n")
+    print(msg)
 
 def make_session() -> requests.Session:
     s = requests.Session()
@@ -32,7 +43,6 @@ def make_session() -> requests.Session:
     return s
 
 def fetch_count(session: requests.Session, keyword: str) -> Tuple[int, str]:
-    """回傳 (商品總數, 訊息)。若失敗，商品總數回 0 並帶訊息。"""
     try:
         r = session.get(BASE_URL, params={"q": keyword, "page": 1}, timeout=15)
         r.raise_for_status()
@@ -43,18 +53,18 @@ def fetch_count(session: requests.Session, keyword: str) -> Tuple[int, str]:
         return 0, f"error: {e}"
 
 def read_keywords(path: str = "keywords.txt") -> List[str]:
+    if not os.path.exists(path):
+        log(f"keywords.txt 不存在，改用預設清單：{DEFAULT_KEYWORDS}")
+        return DEFAULT_KEYWORDS[:]
     with open(path, "r", encoding="utf-8") as f:
         kws = [ln.strip() for ln in f if ln.strip()]
-    # 去重、保持順序
+    # 去重並保序
     seen, result = set(), []
     for kw in kws:
         if kw not in seen:
             seen.add(kw)
             result.append(kw)
-    return result
-
-def ensure_dir():
-    os.makedirs(OUT_DIR, exist_ok=True)
+    return result or DEFAULT_KEYWORDS[:]
 
 def append_csv(path: str, rows: List[dict], fieldnames: List[str]):
     new_file = not os.path.exists(path)
@@ -73,7 +83,7 @@ def write_csv(path: str, rows: List[dict], fieldnames: List[str]):
             w.writerow(r)
 
 def main():
-    ensure_dir()
+    os.makedirs(OUT_DIR, exist_ok=True)
     session = make_session()
     keywords = read_keywords()
 
@@ -86,13 +96,19 @@ def main():
             "count": count,
             "status": msg
         })
-        print(f"{kw:10s} → {count:6d}  ({msg})")
-        time.sleep(1.2)  # 禮貌性延遲
+        log(f"{kw} → {count} ({msg})")
+        time.sleep(1.0)
 
-    # 1) 累積總表
     append_csv(DAILY_ALL_CSV, results, fieldnames=["date", "keyword", "count", "status"])
-    # 2) 今日快照
     write_csv(TODAY_SNAPSHOT, results, fieldnames=["date", "keyword", "count", "status"])
 
+    log(f"已寫入：{DAILY_ALL_CSV}")
+    log(f"已寫入：{TODAY_SNAPSHOT}")
+    log(f"Log 檔：{TODAY_LOG}")
+
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        log(f"致命錯誤：{e}")
+        raise
