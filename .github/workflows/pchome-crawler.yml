@@ -48,13 +48,21 @@ jobs:
       - name: Commit results (robust)
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.quotepath false   # 讓中文檔名在 log 裡顯示而不是亂碼
+
           git add -A
           git status
-          git diff --staged --stat || true
-          if ! git diff --cached --quiet; then
-            git commit -m "data: update PChome keywords on $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+
+          # 若有變更就 commit + push
+          CHANGES=$(git diff --cached --name-only | wc -l | tr -d ' ')
+          echo "Staged changes: $CHANGES"
+          if [ "$CHANGES" -gt 0 ]; then
+            MSG="data: update PChome keywords on $(TZ=Asia/Taipei date +'%Y-%m-%d %H:%M')"
+            git commit -m "$MSG"
             git push
           else
             echo "No changes to commit."
+          fi
