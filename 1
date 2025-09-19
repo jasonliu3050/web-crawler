@@ -1,0 +1,44 @@
+git init
+git add .
+git commit -m "Add PChome keyword crawler"
+git remote add origin https://github.com/你的帳號/你的repo.git
+git push -u origin main
+
+import requests, csv, time
+
+KEYWORDS = ["洋裝", "牛仔褲", "短裙", "雪紡", "連身褲"]  # 你要追蹤的女裝關鍵字
+
+git init
+git add .
+git commit -m "Add PChome keyword crawler"
+git remote add origin https://github.com/你的帳號/你的repo.git
+git push -u origin main
+
+BASE_URL = "https://ecshweb.pchome.com.tw/search/v3.3/all/results"
+
+def fetch_count(keyword):
+    params = {"q": keyword, "page": 1}
+    r = requests.get(BASE_URL, params=params, timeout=10, headers={
+        "User-Agent": "Mozilla/5.0"
+    })
+    r.raise_for_status()
+    data = r.json()
+    return data.get("totalRows", 0)  # 商品總數
+
+def main():
+    results = []
+    for kw in KEYWORDS:
+        count = fetch_count(kw)
+        results.append({"keyword": kw, "count": count})
+        print(f"{kw} => {count}")
+        time.sleep(1.5)  # 禮貌性延遲
+
+    # 存檔
+    with open("pchome_keywords.csv", "a", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=["keyword", "count"])
+        if f.tell() == 0:
+            w.writeheader()
+        w.writerows(results)
+
+if __name__ == "__main__":
+    main()
